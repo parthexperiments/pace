@@ -1,6 +1,7 @@
 import NextAuth, { NextAuthOptions } from "next-auth";
 import type { OAuthConfig } from "next-auth/providers/oauth";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { randomUUID } from "crypto";
 
 const STRAVA_CLIENT_ID = process.env.STRAVA_CLIENT_ID;
 const STRAVA_CLIENT_SECRET = process.env.STRAVA_CLIENT_SECRET;
@@ -56,6 +57,10 @@ const StravaProvider: OAuthConfig<any> = {
 export const authOptions: NextAuthOptions = {
   providers: [StravaProvider],
   secret: process.env.NEXTAUTH_SECRET,
+  pages: {
+    signIn: "/",
+    error: "/",
+  },
   logger: {
     error(code) {
       console.error("[NextAuth] error:", code);
@@ -126,16 +131,25 @@ export const authOptions: NextAuthOptions = {
 
         // Use upsert so we avoid a separate select round-trip and any
         // race condition between the select and insert/update.
+        // First, check if user exists
+        const { data: existingUser } = await supabaseAdmin
+          .from("users")
+          .select("id")
+          .eq("strava_athlete_id", stravaAthleteId)
+          .maybeSingle();
+
         const { data: upserted, error } = await supabaseAdmin
           .from("users")
           .upsert(
             {
+              id: existingUser?.id ?? randomUUID(),
               strava_athlete_id: stravaAthleteId,
               name,
               email,
               access_token: accessToken ?? null,
               refresh_token: refreshToken ?? null,
               token_expires_at: tokenExpiresAt,
+              created_at: existingUser?.id ? undefined : new Date().toISOString(),
             },
             {
               onConflict: "strava_athlete_id", // unique column — upserts on match
