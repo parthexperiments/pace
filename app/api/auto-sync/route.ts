@@ -35,7 +35,11 @@ export async function POST() {
     twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
     const after = Math.floor(twoDaysAgo.getTime() / 1000);
 
-    const activities = await fetchStravaActivities(accessToken, 1, 30, after);
+    const activities = await fetchStravaActivities({
+      accessToken,
+      perPage: 30,
+      after,
+    });
 
     if (!activities || activities.length === 0) {
       return NextResponse.json({ newRuns: 0, activities: [] });
@@ -55,7 +59,10 @@ export async function POST() {
       }
 
       try {
-        const streams = await fetchStravaStreams(accessToken, activity.id);
+        const streams = await fetchStravaStreams({
+          accessToken,
+          activityId: activity.id,
+        });
         if (!streams) continue;
 
         const { data: previousRun } = await supabaseAdmin
@@ -66,26 +73,51 @@ export async function POST() {
           .limit(1)
           .single();
 
-        const preprocessed = preprocessRun(
-          streams,
-          activity,
-          user.goal_pace_seconds,
-          previousRun || undefined
-        );
+        const preprocessed = preprocessRun(streams, activity);
 
-        const analysis = await generateRunCoachingAnalysis(
-          preprocessed,
-          user.goal_distance,
-          user.goal_pace_seconds,
-          user.goal_type,
-          user.goal_date
-        );
+        const analysis = await generateRunCoachingAnalysis({
+          run: {
+            ...preprocessed,
+            id: "",
+            user_id: user.id,
+            strava_activity_id: activity.id,
+            run_date: activity.start_date.split("T")[0],
+            distance_m: preprocessed.distance_km * 1000,
+            running_pct: preprocessed.speed_distribution.running_pct,
+            shuffling_pct: preprocessed.speed_distribution.shuffling_pct,
+            stationary_pct: preprocessed.speed_distribution.stationary_pct,
+            analysis_json: null,
+            created_at: new Date().toISOString(),
+            km_splits_json: preprocessed.km_splits,
+            elevation_json: preprocessed.elevation,
+          },
+          previousRun: previousRun || null,
+          user: {
+            id: user.id,
+            strava_athlete_id: user.strava_athlete_id,
+            name: user.name,
+            email: user.email,
+            access_token: user.access_token,
+            refresh_token: user.refresh_token,
+            token_expires_at: user.token_expires_at,
+            goal_distance: user.goal_distance,
+            custom_distance_km: user.custom_distance_km,
+            goal_type: user.goal_type,
+            goal_time_seconds: user.goal_time_seconds,
+            goal_pace_seconds: user.goal_pace_seconds,
+            deadline_type: user.deadline_type,
+            goal_date: user.goal_date,
+            available_days: user.available_days,
+            coach_tip_dismissed: user.coach_tip_dismissed,
+            created_at: user.created_at,
+          },
+        });
 
         await supabaseAdmin.from("run_analyses").insert({
           id: randomUUID(),
           user_id: user.id,
           strava_activity_id: activity.id,
-          run_date: activity.start_date_local.split("T")[0],
+          run_date: activity.start_date.split("T")[0],
           distance_m: preprocessed.distance_km * 1000,
           elapsed_time_s: Math.round(preprocessed.elapsed_time_s),
           moving_time_s: Math.round(preprocessed.moving_time_s),

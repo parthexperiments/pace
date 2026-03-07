@@ -274,10 +274,11 @@ export default function AnalysisPage() {
                         color: "#fff",
                       }}
                       labelStyle={{ color: "#a1a1aa" }}
-                      formatter={(value: number) => [
-                        formatPace(value),
-                        "Pace",
-                      ]}
+                      formatter={(value: number | undefined) =>
+                        value !== undefined
+                          ? [formatPace(value), "Pace"]
+                          : ["—", "Pace"]
+                      }
                     />
                     <Bar dataKey="pace_s" />
                   </BarChart>

@@ -104,9 +104,7 @@ export async function GET() {
   }
 
   // 4. Find most recent run activity
-  const mostRecentRun = activities.find(
-    (a) => a.type === "Run" || a.sport_type === "Run"
-  );
+  const mostRecentRun = activities.find((a) => a.type === "Run");
 
   if (!mostRecentRun) {
     return NextResponse.json({ message: "No activities found" });
@@ -122,7 +120,7 @@ export async function GET() {
   }
 
   // 6. Preprocess
-  const preprocessed = preprocessRun(streams, mostRecentRun, goalPaceSeconds ?? undefined);
+  const preprocessed = preprocessRun(streams, mostRecentRun);
 
   // 7. Return result
   return NextResponse.json({

@@ -328,7 +328,9 @@ export default function ProgressPage() {
                     border: "1px solid #3f3f46",
                     borderRadius: "0.5rem",
                   }}
-                  formatter={(value: number) => [`${value}%`, "Running %"]}
+                  formatter={(value: number | undefined) =>
+                    value !== undefined ? [`${value}%`, "Running %"] : ["—", "Running %"]
+                  }
                 />
                 <ReferenceLine
                   y={80}
@@ -367,7 +369,9 @@ export default function ProgressPage() {
                     border: "1px solid #3f3f46",
                     borderRadius: "0.5rem",
                   }}
-                  formatter={(value: number) => [formatPace(value), "Gap"]}
+                  formatter={(value: number | undefined) =>
+                    value !== undefined ? [formatPace(value), "Gap"] : ["—", "Gap"]
+                  }
                 />
                 <Line
                   type="monotone"
@@ -399,7 +403,9 @@ export default function ProgressPage() {
                     border: "1px solid #3f3f46",
                     borderRadius: "0.5rem",
                   }}
-                  formatter={(value: number) => [formatPace(value), "Pace"]}
+                  formatter={(value: number | undefined) =>
+                    value !== undefined ? [formatPace(value), "Pace"] : ["—", "Pace"]
+                  }
                 />
                 {goalPace && (
                   <ReferenceLine
@@ -435,7 +441,9 @@ export default function ProgressPage() {
                     border: "1px solid #3f3f46",
                     borderRadius: "0.5rem",
                   }}
-                  formatter={(value: number) => [`${value}km`, "Distance"]}
+                  formatter={(value: number | undefined) =>
+                    value !== undefined ? [`${value}km`, "Distance"] : ["—", "Distance"]
+                  }
                 />
                 {goalDistance && (
                   <ReferenceLine
@@ -465,7 +473,9 @@ export default function ProgressPage() {
                     border: "1px solid #3f3f46",
                     borderRadius: "0.5rem",
                   }}
-                  formatter={(value: number) => [`${value}km`, "Total"]}
+                  formatter={(value: number | undefined) =>
+                    value !== undefined ? [`${value}km`, "Total"] : ["—", "Total"]
+                  }
                 />
                 <Bar dataKey="km" fill="#3B82F6" />
               </BarChart>

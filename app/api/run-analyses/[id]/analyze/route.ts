@@ -6,12 +6,14 @@ import type { RunAnalysis, User } from "@/lib/types";
 import { generateRunCoachingAnalysis } from "@/lib/claude";
 
 interface RouteParams {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }
 
 export async function POST(_req: Request, { params }: RouteParams) {
+  const { id } = await params;
+  
   const session = await getServerSession(authOptions);
 
   if (!session || !session.user?.email) {
@@ -46,7 +48,7 @@ export async function POST(_req: Request, { params }: RouteParams) {
   const { data: runRow, error: runError } = await supabaseAdmin
     .from("run_analyses")
     .select("*")
-    .eq("id", params.id)
+    .eq("id", id)
     .eq("user_id", userId)
     .maybeSingle();
 
@@ -111,7 +113,7 @@ export async function POST(_req: Request, { params }: RouteParams) {
     .update({
       analysis_json: analysis,
     })
-    .eq("id", params.id)
+    .eq("id", id)
     .eq("user_id", userId);
 
   if (updateError) {

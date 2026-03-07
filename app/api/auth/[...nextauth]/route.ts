@@ -57,20 +57,14 @@ export const authOptions: NextAuthOptions = {
   providers: [StravaProvider],
   secret: process.env.NEXTAUTH_SECRET,
   logger: {
-    error(code, message) {
-      const detail =
-        typeof message === "object" ? JSON.stringify(message, null, 2) : message;
-      console.error("[NextAuth] error:", code, detail);
+    error(code) {
+      console.error("[NextAuth] error:", code);
     },
-    warn(code, message) {
-      const detail =
-        typeof message === "object" ? JSON.stringify(message, null, 2) : message;
-      console.warn("[NextAuth] warn:", code, detail);
+    warn(code) {
+      console.warn("[NextAuth] warn:", code);
     },
-    debug(code, message) {
-      const detail =
-        typeof message === "object" ? JSON.stringify(message, null, 2) : message;
-      console.log("[NextAuth] debug:", code, detail);
+    debug(code) {
+      console.log("[NextAuth] debug:", code);
     },
   },
   callbacks: {
@@ -81,7 +75,7 @@ export const authOptions: NextAuthOptions = {
       console.log("[NextAuth] signIn called", {
         hasAccount: Boolean(account),
         hasProfile: Boolean(profile),
-        profileId: profile?.id,
+        profileId: (profile as any)?.id,
         accountProvider: account?.provider,
       });
 
@@ -91,16 +85,16 @@ export const authOptions: NextAuthOptions = {
       }
 
       const stravaAthleteId =
-        typeof profile.id === "number"
-          ? profile.id
-          : typeof profile.id === "string"
-          ? parseInt(profile.id, 10)
+        typeof (profile as any).id === "number"
+          ? (profile as any).id
+          : typeof (profile as any).id === "string"
+          ? parseInt((profile as any).id, 10)
           : null;
 
       if (!stravaAthleteId || Number.isNaN(stravaAthleteId)) {
         console.error(
           "[NextAuth] signIn: invalid or missing profile.id",
-          profile.id
+          (profile as any).id
         );
         return false;
       }
@@ -195,9 +189,9 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, account }) {
       if (account) {
         // Initial sign-in — account is populated
-        token.access_token = account.access_token ?? null;
-        token.refresh_token = account.refresh_token ?? null;
-        token.expires_at = account.expires_at ?? null;
+        token.access_token = account.access_token ?? undefined;
+        token.refresh_token = account.refresh_token ?? undefined;
+        token.expires_at = account.expires_at ?? undefined;
 
         // supabaseUserId was stashed onto account by the signIn callback above
         if ((account as any).supabaseUserId) {
