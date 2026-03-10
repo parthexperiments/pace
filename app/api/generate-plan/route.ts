@@ -128,6 +128,12 @@ export async function POST() {
       `current_phase: ${currentPhase}\n\n` +
       `LAST 4 WEEKS TRAINING:\n` +
       `${JSON.stringify(weeklyHistory)}\n\n` +
+      `STRENGTH DAYS: Always include exactly 4-5 exercises. Scale sets by phase:\n` +
+      `- base_building: 2 sets per exercise, lighter, focus on form\n` +
+      `- build: 3 sets per exercise, moderate\n` +
+      `- peak: 2 sets per exercise, maintenance only\n` +
+      `- taper: 1 set per exercise, very light, just activation\n` +
+      `Use running-specific exercises e.g. single leg squats, calf raises, glute bridges, dead bugs, hip flexor stretch holds, nordic hamstring curls, step-ups with knee drive.\n\n` +
       `Return JSON exactly:\n` +
       `{\n` +
       `  week_number: integer,\n` +
@@ -142,7 +148,7 @@ export async function POST() {
       `      target_pace_min_s: number or null,\n` +
       `      target_pace_max_s: number or null,\n` +
       `      focus_cue: string (max 20 words, null for rest days),\n` +
-      `      exercises: [] (only for strength days)\n` +
+      `      exercises: [] (only for strength days; must be 4-5 items: { name: string, sets: number, reps: string, note: string max 10 words running-specific reason })\n` +
       `    }\n` +
       `  ]\n` +
       `}`;

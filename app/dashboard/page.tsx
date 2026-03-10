@@ -26,8 +26,10 @@ interface RunAnalysis {
   overall_pace_s: number;
   pace_gap_s: number;
   running_pct: number;
+  walking_pct?: number;
+  stopped_pct?: number;
   analysis_json: {
-    key_insight?: { summary: string };
+    key_insight?: { summary: string } | string;
   };
 }
 
@@ -352,15 +354,27 @@ export default function DashboardPage() {
                     </p>
                   </div>
                   <div>
-                    <p className="text-sm text-zinc-400">Moving Pace</p>
+                    <p className="text-sm text-zinc-400">Overall Pace</p>
                     <p className="mt-1 text-xl font-bold text-white">
-                      {formatPace(data.lastRun.moving_pace_s)}/km
+                      {formatPace(data.lastRun.overall_pace_s)}/km
                     </p>
                   </div>
+                  {(data.lastRun.stopped_pct ?? 0) > 0.1 && (
+                    <div>
+                      <p className="text-sm text-zinc-400">Pace gap (stopping cost)</p>
+                      <p className="mt-1 text-xl font-bold text-amber-400">
+                        +{formatPace(data.lastRun.pace_gap_s ?? 0)}/km
+                      </p>
+                    </div>
+                  )}
                 </div>
-                {data.lastRun.analysis_json?.key_insight?.summary && (
+                {(typeof data.lastRun.analysis_json?.key_insight === "string"
+                  ? data.lastRun.analysis_json.key_insight
+                  : data.lastRun.analysis_json?.key_insight?.summary) && (
                   <p className="mt-4 text-sm text-zinc-300">
-                    {data.lastRun.analysis_json.key_insight.summary}
+                    {typeof data.lastRun.analysis_json?.key_insight === "string"
+                      ? data.lastRun.analysis_json.key_insight
+                      : data.lastRun.analysis_json?.key_insight?.summary}
                   </p>
                 )}
               </div>
@@ -581,9 +595,9 @@ export default function DashboardPage() {
                   </p>
                 </div>
                 <div>
-                  <p className="text-sm text-zinc-400">Moving Pace</p>
+                  <p className="text-sm text-zinc-400">Overall Pace</p>
                   <p className="mt-1 text-xl font-bold text-white">
-                    {formatPace(data.todayRun.moving_pace_s)}/km
+                    {formatPace(data.todayRun.overall_pace_s)}/km
                   </p>
                 </div>
                 <div>
@@ -592,12 +606,24 @@ export default function DashboardPage() {
                     {(data.todayRun.running_pct * 100).toFixed(0)}%
                   </p>
                 </div>
+                {(data.todayRun.stopped_pct ?? 0) > 0.1 && (
+                  <div>
+                    <p className="text-sm text-zinc-400">Pace gap (stopping cost)</p>
+                    <p className="mt-1 text-xl font-bold text-amber-400">
+                      +{formatPace(data.todayRun.pace_gap_s ?? 0)}/km
+                    </p>
+                  </div>
+                )}
               </div>
 
-              {data.todayRun.analysis_json?.key_insight?.summary && (
+              {(typeof data.todayRun.analysis_json?.key_insight === "string"
+                ? data.todayRun.analysis_json.key_insight
+                : data.todayRun.analysis_json?.key_insight?.summary) && (
                 <div className="mt-6 rounded-lg border border-zinc-700 bg-zinc-800 p-4">
                   <p className="text-sm font-medium text-zinc-300">
-                    {data.todayRun.analysis_json.key_insight.summary}
+                    {typeof data.todayRun.analysis_json?.key_insight === "string"
+                      ? data.todayRun.analysis_json.key_insight
+                      : data.todayRun.analysis_json?.key_insight?.summary}
                   </p>
                 </div>
               )}

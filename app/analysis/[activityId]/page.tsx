@@ -25,30 +25,22 @@ interface Elevation {
 }
 
 interface AnalysisJson {
-  honest_numbers: {
-    summary: string;
-  };
-  key_insight: {
-    summary: string;
-  };
-  km_by_km: {
-    summary: string;
-  };
-  performance_vs_plan: {
-    summary: string;
-  };
-  the_one_thing: {
-    cue: string;
-  };
-  coach_debrief: {
-    paragraphs: string[];
-  };
+  honest_numbers?: { summary: string };
+  key_insight?: { summary: string } | string;
+  previous_run_assessment?: string | null;
+  km_by_km?: { summary: string };
+  performance_vs_plan?: { summary: string } | string;
+  the_one_thing?: { cue: string };
+  one_thing?: string;
+  coach_debrief?: { paragraphs: string[] };
+  coach_paragraphs?: string[];
 }
 
 interface AnalysisResponse {
   analysis: RunAnalysis;
   cached: boolean;
   user_goal_pace_seconds?: number | null;
+  previous_run_context?: { date: string; distance_km: number } | null;
 }
 
 function formatPace(seconds: number): string {
@@ -64,6 +56,21 @@ function formatPercentage(value: number): string {
 function formatDistance(meters: number): string {
   return `${(meters / 1000).toFixed(2)}km`;
 }
+
+const RUN_TYPE_LABEL: Record<string, string> = {
+  long: "Long Run",
+  tempo: "Tempo",
+  easy: "Easy Run",
+  short: "Short Run",
+  race_effort: "Race Effort",
+};
+const RUN_TYPE_BADGE_CLASS: Record<string, string> = {
+  long: "bg-blue-500/20 text-blue-400 border-blue-500/40",
+  tempo: "bg-[#E8521A]/20 text-[#E8521A] border-[#E8521A]/40",
+  easy: "bg-green-500/20 text-green-400 border-green-500/40",
+  short: "bg-zinc-500/20 text-zinc-400 border-zinc-500/40",
+  race_effort: "bg-red-500/20 text-red-400 border-red-500/40",
+};
 
 export default function AnalysisPage() {
   const params = useParams();
@@ -161,9 +168,18 @@ export default function AnalysisPage() {
     <main className="min-h-screen bg-zinc-950 px-6 py-12">
       <div className="mx-auto max-w-3xl space-y-12">
         <div className="space-y-2">
-          <h1 className="text-3xl font-bold tracking-tight text-white">
-            Post-Run Analysis
-          </h1>
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-3xl font-bold tracking-tight text-white">
+              Post-Run Analysis
+            </h1>
+            {analysis.run_type && (
+              <span
+                className={`rounded-full border px-3 py-1 text-sm font-medium ${RUN_TYPE_BADGE_CLASS[analysis.run_type] ?? "bg-zinc-500/20 text-zinc-400 border-zinc-500/40"}`}
+              >
+                {RUN_TYPE_LABEL[analysis.run_type] ?? analysis.run_type}
+              </span>
+            )}
+          </div>
           <p className="text-sm text-zinc-500">
             {new Date(analysis.run_date || "").toLocaleDateString("en-GB", {
               weekday: "long",
@@ -179,15 +195,9 @@ export default function AnalysisPage() {
             1. Honest Numbers
           </h2>
           <div className="grid gap-4 sm:grid-cols-2">
-            <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
-              <p className="text-sm text-zinc-500">Moving Pace</p>
-              <p className="mt-1 text-2xl font-bold text-white">
-                {formatPace(analysis.moving_pace_s || 0)}/km
-              </p>
-            </div>
-            <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
+            <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4 sm:col-span-2">
               <p className="text-sm text-zinc-500">Overall Pace</p>
-              <p className="mt-1 text-2xl font-bold text-white">
+              <p className="mt-1 text-3xl font-bold text-white">
                 {formatPace(analysis.overall_pace_s || 0)}/km
               </p>
             </div>
@@ -198,11 +208,39 @@ export default function AnalysisPage() {
               </p>
             </div>
             <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
-              <p className="text-sm text-zinc-500">Pace Gap</p>
-              <p className="mt-1 text-2xl font-bold text-white">
-                +{formatPace(analysis.pace_gap_s || 0)}/km
+              <p className="text-sm text-zinc-500">Running %</p>
+              <p className="mt-1 text-2xl font-bold text-green-400">
+                {formatPercentage(analysis.running_pct || 0)}
               </p>
             </div>
+            <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
+              <p className="text-sm text-zinc-500">Walking %</p>
+              <p className="mt-1 text-2xl font-bold text-amber-400">
+                {formatPercentage(analysis.walking_pct || 0)}
+              </p>
+            </div>
+            {(analysis.stopped_pct ?? 0) > 0.1 && (
+              <>
+                <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
+                  <p className="text-sm text-zinc-500">Moving pace — when actually running</p>
+                  <p className="mt-1 text-2xl font-bold text-white">
+                    {formatPace(analysis.moving_pace_s || 0)}/km
+                  </p>
+                </div>
+                <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
+                  <p className="text-sm text-zinc-500">Stopped %</p>
+                  <p className="mt-1 text-2xl font-bold text-red-400">
+                    {formatPercentage(analysis.stopped_pct || 0)}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4 sm:col-span-2">
+                  <p className="text-sm text-zinc-500">What stopping costs you per km</p>
+                  <p className="mt-1 text-2xl font-bold text-white">
+                    +{formatPace(analysis.pace_gap_s || 0)}/km
+                  </p>
+                </div>
+              </>
+            )}
           </div>
           <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
             <p className="mb-3 text-sm font-medium text-zinc-400">
@@ -216,17 +254,19 @@ export default function AnalysisPage() {
                 </p>
               </div>
               <div>
-                <p className="text-xs text-zinc-500">Shuffling</p>
+                <p className="text-xs text-zinc-500">Walking</p>
                 <p className="mt-1 text-lg font-semibold text-amber-400">
-                  {formatPercentage(analysis.shuffling_pct || 0)}
+                  {formatPercentage(analysis.walking_pct || 0)}
                 </p>
               </div>
-              <div>
-                <p className="text-xs text-zinc-500">Stationary</p>
-                <p className="mt-1 text-lg font-semibold text-red-400">
-                  {formatPercentage(analysis.stationary_pct || 0)}
-                </p>
-              </div>
+              {(analysis.stopped_pct ?? 0) > 0.1 && (
+                <div>
+                  <p className="text-xs text-zinc-500">Stopped</p>
+                  <p className="mt-1 text-lg font-semibold text-red-400">
+                    {formatPercentage(analysis.stopped_pct || 0)}
+                  </p>
+                </div>
+              )}
             </div>
           </div>
           {analysisJson?.honest_numbers?.summary && (
@@ -236,14 +276,42 @@ export default function AnalysisPage() {
           )}
         </section>
 
+        {analysis.run_type && (
+          <section className="space-y-4">
+            <h2 className="text-xl font-semibold text-[#E8521A]">
+              1.5. Progress Since Last {RUN_TYPE_LABEL[analysis.run_type] ?? analysis.run_type}
+            </h2>
+            <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-6">
+              {analysisJson?.previous_run_assessment != null &&
+              analysisJson.previous_run_assessment !== "" ? (
+                <>
+                  <p className="text-zinc-100 leading-relaxed">
+                    {analysisJson.previous_run_assessment}
+                  </p>
+                  {data?.previous_run_context && (
+                    <p className="mt-3 text-sm text-zinc-500">
+                      Previous run: {data.previous_run_context.date} · {data.previous_run_context.distance_km.toFixed(1)}km
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p className="text-zinc-400">
+                  First {RUN_TYPE_LABEL[analysis.run_type] ?? analysis.run_type} on record — establishing your baseline
+                </p>
+              )}
+            </div>
+          </section>
+        )}
+
         <section className="space-y-4">
           <h2 className="text-xl font-semibold text-[#E8521A]">
             2. Key Insight
           </h2>
           <div className="rounded-lg border border-zinc-800 bg-gradient-to-br from-zinc-900 to-zinc-900/50 p-6">
             <p className="text-lg text-zinc-100 leading-relaxed">
-              {analysisJson?.key_insight?.summary ||
-                "No key insight available"}
+              {(typeof analysisJson?.key_insight === "string"
+                ? analysisJson.key_insight
+                : (analysisJson?.key_insight as { summary?: string })?.summary) || "No key insight available"}
             </p>
           </div>
         </section>
@@ -315,7 +383,9 @@ export default function AnalysisPage() {
           </h2>
           <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-6">
             <p className="text-zinc-300 leading-relaxed">
-              {analysisJson?.performance_vs_plan?.summary ||
+              {(typeof analysisJson?.performance_vs_plan === "string"
+                ? analysisJson.performance_vs_plan
+                : analysisJson?.performance_vs_plan?.summary) ||
                 "No performance data available"}
             </p>
           </div>
@@ -327,7 +397,9 @@ export default function AnalysisPage() {
           </h2>
           <div className="rounded-lg border-2 border-[#E8521A]/30 bg-gradient-to-br from-orange-950/30 to-zinc-900 p-8">
             <p className="text-2xl font-medium text-white leading-relaxed">
-              {analysisJson?.the_one_thing?.cue ||
+              {(typeof analysisJson?.one_thing === "string"
+                ? analysisJson.one_thing
+                : analysisJson?.the_one_thing?.cue) ||
                 "Focus on maintaining consistent effort"}
             </p>
           </div>
@@ -338,7 +410,7 @@ export default function AnalysisPage() {
             6. AI Coach Debrief
           </h2>
           <div className="space-y-4">
-            {analysisJson?.coach_debrief?.paragraphs?.map(
+            {(analysisJson?.coach_paragraphs ?? analysisJson?.coach_debrief?.paragraphs)?.map(
               (paragraph, index) => (
                 <p
                   key={index}

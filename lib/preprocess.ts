@@ -1,6 +1,7 @@
 import type { StravaActivitySummary, StravaStreams } from "./strava";
+import { classifyRun } from "./classify-run";
 
-const MOVING_THRESHOLD_MPS = 0.55;  // 2 km/h  — below this = stationary
+const MOVING_THRESHOLD_MPS = 0.55;  // 2 km/h  — below this = stopped
 const RUNNING_THRESHOLD_MPS = 1.67; // 6 km/h  — above this = running
 
 export interface PreprocessedRun {
@@ -11,27 +12,32 @@ export interface PreprocessedRun {
   distance_km: number;
   speed_distribution: {
     running_pct: number;
-    shuffling_pct: number;
-    stationary_pct: number;
+    walking_pct: number;
+    stopped_pct: number;
   };
   km_splits: { km: number; pace_s: number }[];
   elevation: { gain_m: number; loss_m: number; flat: boolean };
   pace_gap_s: number;
+  run_type: string;
 }
 
 /**
  * Preprocess a run from Strava streams + activity summary.
  *
  * moving_pace_s   — s/km counting only intervals where velocity_smooth > 0.55 m/s
- * overall_pace_s  — elapsed_time_s / distance_km  (wall-clock pace)
+ * overall_pace_s  — elapsed_time_s / distance_km  (wall-clock pace) PRIMARY METRIC
  * pace_gap_s      — overall_pace_s − moving_pace_s  (time lost to stops)
  * speed_distribution — fraction of elapsed time in each zone (sums to 1)
  * km_splits       — one entry per completed km, using elapsed (wall-clock) time
  * elevation       — cumulative gain/loss from altitude stream; flat when gain < 50 m
+ * run_type        — deterministic classification based on distance/pace vs goal
  */
 export function preprocessRun(
   streams: StravaStreams | null,
-  activity: StravaActivitySummary
+  activity: StravaActivitySummary,
+  goalDistanceKm: number,
+  goalPaceS: number | null,
+  goalType: 'finish' | 'time' | 'pace'
 ): PreprocessedRun {
   const distance_km = activity.distance / 1000;
   const elapsed_time_s = activity.elapsed_time;
@@ -52,6 +58,8 @@ export function preprocessRun(
   const km_splits = computeKmSplits(streams, activity.distance, elapsed_time_s);
   const elevation = computeElevation(streams);
 
+  const run_type = classifyRun(distance_km, overall_pace_s, goalDistanceKm, goalPaceS, goalType);
+
   return {
     moving_pace_s,
     overall_pace_s,
@@ -62,6 +70,7 @@ export function preprocessRun(
     km_splits,
     elevation,
     pace_gap_s,
+    run_type,
   };
 }
 
@@ -75,17 +84,17 @@ function computeMovingAndDistribution(
   moving_distance_m: number;
   speed_distribution: {
     running_pct: number;
-    shuffling_pct: number;
-    stationary_pct: number;
+    walking_pct: number;
+    stopped_pct: number;
   };
 } {
-  // FIX: no-stream fallback now returns stationary_pct: 1 (not all zeros)
+  // FIX: no-stream fallback now returns stopped_pct: 1 (not all zeros)
   // because we genuinely don't know the distribution — treat as untracked.
   if (!streams?.velocity_smooth?.data?.length || !streams?.time?.data?.length) {
     return {
       moving_time_s: elapsed_time_s,
       moving_distance_m: 0,
-      speed_distribution: { running_pct: 0, shuffling_pct: 0, stationary_pct: 1 },
+      speed_distribution: { running_pct: 0, walking_pct: 0, stopped_pct: 1 },
     };
   }
 
@@ -96,8 +105,8 @@ function computeMovingAndDistribution(
   let moving_time_s = 0;
   let moving_distance_m = 0;
   let runningTime = 0;
-  let shufflingTime = 0;
-  let stationaryTime = 0;
+  let walkingTime = 0;
+  let stoppedTime = 0;
 
   for (let i = 1; i < n; i++) {
     const dt = times[i] - times[i - 1];
@@ -110,23 +119,23 @@ function computeMovingAndDistribution(
       moving_time_s += dt;
       moving_distance_m += v * dt;
     } else if (v > MOVING_THRESHOLD_MPS) {
-      shufflingTime += dt;
+      walkingTime += dt;
       moving_time_s += dt;
       moving_distance_m += v * dt;
     } else {
-      stationaryTime += dt;
+      stoppedTime += dt;
     }
   }
 
-  const totalTime = runningTime + shufflingTime + stationaryTime || 1;
+  const totalTime = runningTime + walkingTime + stoppedTime || 1;
 
   return {
     moving_time_s,
     moving_distance_m,
     speed_distribution: {
       running_pct: runningTime / totalTime,
-      shuffling_pct: shufflingTime / totalTime,
-      stationary_pct: stationaryTime / totalTime,
+      walking_pct: walkingTime / totalTime,
+      stopped_pct: stoppedTime / totalTime,
     },
   };
 }

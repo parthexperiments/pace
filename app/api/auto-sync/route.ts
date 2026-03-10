@@ -65,6 +65,22 @@ export async function POST() {
         });
         if (!streams) continue;
 
+        // Calculate goal distance
+        const goalDistanceKm = 
+          user.goal_distance === 'custom' ? user.custom_distance_km :
+          user.goal_distance === '5k' ? 5 :
+          user.goal_distance === '10k' ? 10 :
+          user.goal_distance === 'half' ? 21.1 :
+          user.goal_distance === 'full' ? 42.2 : 10;
+
+        const preprocessed = preprocessRun(
+          streams, 
+          activity,
+          goalDistanceKm,
+          user.goal_pace_seconds,
+          user.goal_type as 'finish' | 'time' | 'pace'
+        );
+
         const { data: previousRun } = await supabaseAdmin
           .from("run_analyses")
           .select("moving_pace_s, overall_pace_s")
@@ -73,8 +89,6 @@ export async function POST() {
           .limit(1)
           .single();
 
-        const preprocessed = preprocessRun(streams, activity);
-
         const analysis = await generateRunCoachingAnalysis({
           run: {
             ...preprocessed,
@@ -82,11 +96,13 @@ export async function POST() {
             user_id: user.id,
             strava_activity_id: activity.id,
             run_date: activity.start_date.split("T")[0],
+            run_type: preprocessed.run_type,
             distance_m: preprocessed.distance_km * 1000,
             running_pct: preprocessed.speed_distribution.running_pct,
-            shuffling_pct: preprocessed.speed_distribution.shuffling_pct,
-            stationary_pct: preprocessed.speed_distribution.stationary_pct,
+            walking_pct: preprocessed.speed_distribution.walking_pct,
+            stopped_pct: preprocessed.speed_distribution.stopped_pct,
             analysis_json: null,
+            run_summary_json: null,
             created_at: new Date().toISOString(),
             km_splits_json: preprocessed.km_splits,
             elevation_json: preprocessed.elevation,
@@ -118,6 +134,7 @@ export async function POST() {
           user_id: user.id,
           strava_activity_id: activity.id,
           run_date: activity.start_date.split("T")[0],
+          run_type: preprocessed.run_type,
           distance_m: preprocessed.distance_km * 1000,
           elapsed_time_s: Math.round(preprocessed.elapsed_time_s),
           moving_time_s: Math.round(preprocessed.moving_time_s),
@@ -125,8 +142,8 @@ export async function POST() {
           overall_pace_s: Math.round(preprocessed.overall_pace_s),
           pace_gap_s: Math.round(preprocessed.pace_gap_s),
           running_pct: preprocessed.speed_distribution.running_pct,
-          shuffling_pct: preprocessed.speed_distribution.shuffling_pct,
-          stationary_pct: preprocessed.speed_distribution.stationary_pct,
+          walking_pct: preprocessed.speed_distribution.walking_pct,
+          stopped_pct: preprocessed.speed_distribution.stopped_pct,
           km_splits_json: preprocessed.km_splits,
           elevation_json: preprocessed.elevation,
           analysis_json: analysis,

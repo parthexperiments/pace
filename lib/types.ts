@@ -32,6 +32,7 @@ export interface RunAnalysis {
   user_id: string;
   strava_activity_id: number;
   run_date: string | null;
+  run_type: string | null;
   distance_m: number | null;
   elapsed_time_s: number | null;
   moving_time_s: number | null;
@@ -39,11 +40,25 @@ export interface RunAnalysis {
   overall_pace_s: number | null;
   pace_gap_s: number | null;
   running_pct: number | null;
-  shuffling_pct: number | null;
-  stationary_pct: number | null;
+  walking_pct: number | null;
+  stopped_pct: number | null;
   km_splits_json: unknown;
   elevation_json: unknown;
   analysis_json: unknown;
+  run_summary_json: unknown;
   created_at: string | null;
+}
+
+export interface RunSummary {
+  run_type: string;
+  date: string;
+  distance_km: number;
+  overall_pace_s: number;
+  running_pct: number;
+  walking_pct: number;
+  stopped_pct: number;
+  insights: string[];
+  recommendation: string;
+  recommendation_followed: boolean | null;
 }
 

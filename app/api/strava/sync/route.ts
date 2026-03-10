@@ -22,7 +22,7 @@ export async function POST() {
   const { data: userRow, error: userError } = await supabaseAdmin
     .from("users")
     .select(
-      "id, email, access_token, refresh_token, token_expires_at"
+      "id, email, access_token, refresh_token, token_expires_at, goal_distance, custom_distance_km, goal_pace_seconds, goal_type"
     )
     .eq("email", email)
     .maybeSingle();
@@ -127,7 +127,20 @@ export async function POST() {
         activityId: activity.id,
       });
 
-      const metrics = preprocessRun(streams, activity);
+      const goalDistanceKm = 
+        userRow.goal_distance === 'custom' ? userRow.custom_distance_km :
+        userRow.goal_distance === '5k' ? 5 :
+        userRow.goal_distance === '10k' ? 10 :
+        userRow.goal_distance === 'half' ? 21.1 :
+        userRow.goal_distance === 'full' ? 42.2 : 10;
+
+      const metrics = preprocessRun(
+        streams, 
+        activity,
+        goalDistanceKm,
+        userRow.goal_pace_seconds,
+        userRow.goal_type as 'finish' | 'time' | 'pace'
+      );
 
       const { error: insertError } = await supabaseAdmin
         .from("run_analyses")
@@ -135,6 +148,7 @@ export async function POST() {
           user_id: userRow.id,
           strava_activity_id: activity.id,
           run_date: activity.start_date,
+          run_type: metrics.run_type,
           distance_m: activity.distance,
           elapsed_time_s: metrics.elapsed_time_s,
           moving_time_s: metrics.moving_time_s,
@@ -142,8 +156,8 @@ export async function POST() {
           overall_pace_s: metrics.overall_pace_s,
           pace_gap_s: metrics.pace_gap_s,
           running_pct: metrics.speed_distribution.running_pct,
-          shuffling_pct: metrics.speed_distribution.shuffling_pct,
-          stationary_pct: metrics.speed_distribution.stationary_pct,
+          walking_pct: metrics.speed_distribution.walking_pct,
+          stopped_pct: metrics.speed_distribution.stopped_pct,
           km_splits_json: { splits: metrics.km_splits },
           elevation_json: metrics.elevation,
           analysis_json: {},

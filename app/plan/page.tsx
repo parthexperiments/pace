@@ -3,6 +3,13 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
+interface StrengthExercise {
+  name: string;
+  sets: number;
+  reps: string;
+  note: string;
+}
+
 interface DayPlan {
   day: string;
   type: string;
@@ -11,7 +18,7 @@ interface DayPlan {
   target_pace_min_s: number | null;
   target_pace_max_s: number | null;
   focus_cue: string | null;
-  exercises: string[];
+  exercises?: (StrengthExercise | string)[];
 }
 
 interface WeeklyPlan {
@@ -294,13 +301,41 @@ export default function PlanPage() {
                     )}
 
                     {day.exercises && day.exercises.length > 0 && (
-                      <ul className="mt-4 space-y-1">
-                        {day.exercises.map((exercise, idx) => (
-                          <li key={idx} className="text-sm text-zinc-400">
-                            • {exercise}
-                          </li>
-                        ))}
-                      </ul>
+                      <div className="mt-4">
+                        <p className="mb-2 text-sm font-medium text-zinc-400">
+                          Exercises
+                        </p>
+                        <ul className="space-y-2">
+                          {day.exercises.map((exercise, idx) => {
+                            const ex =
+                              typeof exercise === "string"
+                                ? { name: exercise, sets: 0, reps: "", note: "" }
+                                : exercise;
+                            return (
+                              <li
+                                key={idx}
+                                className="flex flex-wrap items-baseline gap-2 text-sm"
+                              >
+                                <span className="font-medium text-white">
+                                  {ex.name}
+                                </span>
+                                {(ex.sets > 0 || ex.reps) && (
+                                  <span className="text-zinc-400">
+                                    {ex.sets > 0 && `${ex.sets} sets`}
+                                    {ex.sets > 0 && ex.reps && " · "}
+                                    {ex.reps && `${ex.reps} reps`}
+                                  </span>
+                                )}
+                                {ex.note && (
+                                  <span className="text-zinc-500">
+                                    — {ex.note}
+                                  </span>
+                                )}
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
                     )}
                   </div>
                 </div>

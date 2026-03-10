@@ -62,7 +62,7 @@ export async function GET() {
   // 2. Look up user by Supabase UUID to get the stored access_token
   const { data: userRow, error: userError } = await supabaseAdmin
     .from("users")
-    .select("id, access_token, goal_pace_seconds")
+    .select("id, access_token, goal_pace_seconds, goal_distance, custom_distance_km, goal_type")
     .eq("id", session.user.id)   // ← UUID primary key, not email
     .single();
 
@@ -120,7 +120,20 @@ export async function GET() {
   }
 
   // 6. Preprocess
-  const preprocessed = preprocessRun(streams, mostRecentRun);
+  const goalDistanceKm = 
+    userRow.goal_distance === 'custom' ? userRow.custom_distance_km :
+    userRow.goal_distance === '5k' ? 5 :
+    userRow.goal_distance === '10k' ? 10 :
+    userRow.goal_distance === 'half' ? 21.1 :
+    userRow.goal_distance === 'full' ? 42.2 : 10;
+
+  const preprocessed = preprocessRun(
+    streams, 
+    mostRecentRun,
+    goalDistanceKm,
+    userRow.goal_pace_seconds,
+    userRow.goal_type as 'finish' | 'time' | 'pace'
+  );
 
   // 7. Return result
   return NextResponse.json({
