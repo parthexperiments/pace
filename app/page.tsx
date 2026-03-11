@@ -10,31 +10,30 @@ export default function Home() {
   const [checkingOnboarding, setCheckingOnboarding] = useState(false);
 
   useEffect(() => {
-    const checkOnboardingStatus = async () => {
-      if (session?.user?.id && !checkingOnboarding) {
-        setCheckingOnboarding(true);
-        try {
-          const res = await fetch("/api/user/status");
-          if (res.ok) {
-            const data = await res.json();
-            if (!data.user.goal_distance) {
-              router.push("/onboarding");
-            } else {
-              router.push("/dashboard");
-            }
-          }
-        } catch (error) {
-          console.error("Failed to check onboarding status:", error);
-        } finally {
-          setCheckingOnboarding(false);
+    const checkStatus = async () => {
+      if (status !== "authenticated" || checkingOnboarding) return;
+      setCheckingOnboarding(true);
+      try {
+        const res = await fetch("/api/user/status");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data.authenticated) return;
+        if (data.onboardingComplete) {
+          router.push("/dashboard");
+        } else {
+          router.push("/onboarding");
         }
+      } catch (error) {
+        console.error("Failed to check user status:", error);
+      } finally {
+        setCheckingOnboarding(false);
       }
     };
 
     if (status === "authenticated") {
-      checkOnboardingStatus();
+      checkStatus();
     }
-  }, [session, status, router, checkingOnboarding]);
+  }, [status, router, checkingOnboarding]);
 
   if (status === "loading" || (status === "authenticated" && checkingOnboarding)) {
     return (

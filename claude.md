@@ -141,11 +141,18 @@ Note: `insights` array has NO cap — include all meaningful observations.
 3. Deadline: user_set (date picker) | ai_recommended (no picker, recommend on insight screen) | none (rolling 12-week plan)
 4. Available days: multi-select toggles
 
-## Home Dashboard — 4 States
-1. Rest day: mobility routine + last run snapshot + weekly progress + countdown
-2. Run day pre-run: today's brief card prominent + weekly progress + countdown
-3. Run day post-run not synced: nudge to sync Strava
-4. Run day post-run synced: analysis ready card + updated score
+## User Flow (post-OAuth)
+- **Landing (/)** — If not authenticated: show Connect Strava. If authenticated: redirect to /onboarding (no goal) or /dashboard (onboarding complete).
+- **Onboarding** — Starts immediately after OAuth; historical sync runs in background (fire-and-forget POST /api/sync-historical-runs). If user completes all 4 steps before sync finishes, dashboard shows "Setting up your coaching profile, almost ready..." and polls GET /api/sync-status every 3s until syncing = false.
+- **Dashboard** — If authenticated but no goal_distance: redirect to /onboarding. If syncing (needs_historical_sync): show loading state and poll sync-status. Otherwise show full dashboard.
+- **Returning users** — GET /api/user/status returns { authenticated, onboardingComplete, needsHistoricalSync, goalDistance, goalDate, name }. Use for routing and UI.
+
+## Home Dashboard — States & Bottom Section
+**State detection (order):** 1) Today's date 2) Is today in user's available_days 3) Run exists for today in run_analyses 4) Most recent run (any date).
+- **Rest day:** Mobility routine + last run snapshot (date, distance, overall pace, running %, key insight line, "See Full Analysis" link) + weekly progress + countdown.
+- **Run day, no run today:** Today's planned run from weekly plan + pre-run brief + "I've completed my run" button.
+- **Run day, run exists today:** Today's run stats + key insight + "See Full Analysis" button.
+**Always at bottom:** Weekly progress bar, days to goal countdown, "View Full Weekly Plan →" link.
 
 ## Scoring
 - Users with deadline_type user_set or ai_recommended: Readiness Score (0-100)

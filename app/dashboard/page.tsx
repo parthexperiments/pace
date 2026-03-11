@@ -67,6 +67,7 @@ interface DashboardData {
   lastRun: RunAnalysis | null;
   weeklyRuns: number;
   weeklyPlanExists: boolean;
+  totalRuns?: number;
 }
 
 type DashboardState = "rest" | "pre-run" | "post-run-synced" | "loading";
@@ -129,6 +130,7 @@ export default function DashboardPage() {
   const [state, setState] = useState<DashboardState>("loading");
   const [generatingPlan, setGeneratingPlan] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState<boolean | null>(null);
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -137,12 +139,53 @@ export default function DashboardPage() {
     }
 
     if (status === "authenticated") {
-      fetchDashboardData();
-      fetchPlan();
-      fetchPreRunBrief();
-      autoSyncInBackground();
+      checkSyncThenLoad();
     }
   }, [status, router]);
+
+  const checkSyncThenLoad = async () => {
+    try {
+      const res = await fetch("/api/sync-status");
+      if (!res.ok) {
+        setSyncing(false);
+        loadDashboard();
+        return;
+      }
+      const { syncing: isSyncing } = await res.json();
+      setSyncing(isSyncing);
+      if (!isSyncing) {
+        loadDashboard();
+      }
+    } catch {
+      setSyncing(false);
+      loadDashboard();
+    }
+  };
+
+  useEffect(() => {
+    if (syncing !== true) return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch("/api/sync-status");
+        if (!res.ok) return;
+        const { syncing: isSyncing } = await res.json();
+        if (!isSyncing) {
+          setSyncing(false);
+          loadDashboard();
+        }
+      } catch {
+        // ignore
+      }
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [syncing]);
+
+  const loadDashboard = () => {
+    fetchDashboardData();
+    fetchPlan();
+    fetchPreRunBrief();
+    autoSyncInBackground();
+  };
 
   const autoSyncInBackground = async () => {
     try {
@@ -169,6 +212,10 @@ export default function DashboardPage() {
       const res = await fetch("/api/dashboard");
       if (!res.ok) throw new Error("Failed to fetch dashboard data");
       const dashboardData = await res.json();
+      if (dashboardData.user && !dashboardData.user.goal_distance) {
+        router.push("/onboarding");
+        return;
+      }
       setData(dashboardData);
       determineDashboardState(dashboardData);
     } catch (error) {
@@ -209,6 +256,8 @@ export default function DashboardPage() {
       if (!res.ok) throw new Error("Failed to generate plan");
       const planData = await res.json();
       setPlan(planData.plan);
+      fetchPlan();
+      fetchPreRunBrief();
     } catch (error) {
       console.error("Error generating plan:", error);
       alert("Failed to generate plan. Please try again.");
@@ -219,9 +268,12 @@ export default function DashboardPage() {
 
   const determineDashboardState = (dashboardData: DashboardData) => {
     const today = getDayOfWeek();
-    const isRunDay = dashboardData.user.available_days?.includes(today);
+    const availableDays = dashboardData.user.available_days ?? [];
+    const isRunDay = availableDays.some(
+      (d) => String(d).toLowerCase() === today.toLowerCase()
+    );
 
-    if (dashboardData.todayRun) {
+    if (isRunDay && dashboardData.todayRun) {
       setState("post-run-synced");
     } else if (isRunDay) {
       setState("pre-run");
@@ -230,7 +282,18 @@ export default function DashboardPage() {
     }
   };
 
-  if (status === "loading" || state === "loading" || !data) {
+  if (status === "authenticated" && syncing === true) {
+    return (
+      <main className="flex min-h-screen flex-col items-center justify-center bg-[#0A0A0A] px-6">
+        <div className="h-12 w-12 animate-spin rounded-full border-4 border-zinc-700 border-t-[#E8521A]" />
+        <p className="mt-6 text-center text-zinc-400">
+          Setting up your coaching profile, almost ready...
+        </p>
+      </main>
+    );
+  }
+
+  if (status === "loading" || syncing === null || state === "loading" || !data) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#0A0A0A]">
         <div className="h-12 w-12 animate-spin rounded-full border-4 border-zinc-700 border-t-[#E8521A]" />
@@ -280,53 +343,21 @@ export default function DashboardPage() {
           </button>
         </div>
 
-        {daysToGoal !== null && daysToGoal >= 0 && (
-          <div className="mb-6 rounded-lg border border-zinc-800 bg-zinc-900 p-4">
-            <p className="text-sm text-zinc-400">Days to goal</p>
-            <p className="mt-1 text-3xl font-bold text-[#E8521A]">{daysToGoal}</p>
-          </div>
-        )}
-
-        <div className="mb-6 rounded-lg border border-zinc-800 bg-zinc-900 p-4">
-          <div className="mb-2 flex items-center justify-between">
-            <p className="text-sm text-zinc-400">Weekly Progress</p>
-            <p className="text-sm text-zinc-400">
-              {data.weeklyRuns} / {data.user.available_days?.length || 0} runs
-            </p>
-          </div>
-          <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-800">
-            <div
-              className="h-full bg-[#E8521A] transition-all"
-              style={{
-                width: `${((data.weeklyRuns / (data.user.available_days?.length || 1)) * 100).toFixed(0)}%`,
-              }}
-            />
-          </div>
-        </div>
-
         {!plan && (
-          <div className="mb-6 rounded-lg border-2 border-[#E8521A]/30 bg-gradient-to-br from-[#E8521A]/10 to-zinc-900 p-6">
-            <h3 className="text-lg font-semibold text-white">No Training Plan Yet</h3>
+          <div className="mb-6 w-full rounded-lg border-2 border-[#E8521A]/30 bg-gradient-to-br from-[#E8521A]/10 to-zinc-900 p-6">
+            <h2 className="text-xl font-bold text-white">
+              Your Week 1 Plan is Ready to Generate
+            </h2>
             <p className="mt-2 text-sm text-zinc-400">
-              Generate your personalized weekly training plan based on your goal and availability.
+              We&apos;ll build a personalised plan based on your goal and your last{" "}
+              {data?.totalRuns ?? 0} runs
             </p>
             <button
               onClick={handleGeneratePlan}
               disabled={generatingPlan}
-              className="mt-4 rounded-lg bg-[#E8521A] px-6 py-3 font-medium text-white transition-colors hover:bg-[#d14715] disabled:cursor-not-allowed disabled:opacity-50"
+              className="mt-6 w-full rounded-lg bg-[#E8521A] px-6 py-4 font-medium text-white transition-colors hover:bg-[#d14715] disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {generatingPlan ? "Generating Plan..." : "Generate My Weekly Plan"}
-            </button>
-          </div>
-        )}
-
-        {plan && (
-          <div className="mb-6">
-            <button
-              onClick={() => router.push("/plan")}
-              className="text-sm text-zinc-400 hover:text-zinc-300"
-            >
-              View Full Weekly Plan →
+              {generatingPlan ? "Building your plan..." : "Generate My Plan"}
             </button>
           </div>
         )}
@@ -346,6 +377,13 @@ export default function DashboardPage() {
             {data.lastRun && (
               <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-6">
                 <h3 className="text-lg font-semibold text-white">Last Run</h3>
+                <p className="mt-1 text-sm text-zinc-500">
+                  {new Date(data.lastRun.run_date).toLocaleDateString("en-GB", {
+                    weekday: "long",
+                    day: "numeric",
+                    month: "short",
+                  })}
+                </p>
                 <div className="mt-4 grid gap-4 sm:grid-cols-2">
                   <div>
                     <p className="text-sm text-zinc-400">Distance</p>
@@ -357,6 +395,12 @@ export default function DashboardPage() {
                     <p className="text-sm text-zinc-400">Overall Pace</p>
                     <p className="mt-1 text-xl font-bold text-white">
                       {formatPace(data.lastRun.overall_pace_s)}/km
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-zinc-400">Running %</p>
+                    <p className="mt-1 text-xl font-bold text-green-400">
+                      {((data.lastRun.running_pct ?? 0) * 100).toFixed(0)}%
                     </p>
                   </div>
                   {(data.lastRun.stopped_pct ?? 0) > 0.1 && (
@@ -377,6 +421,14 @@ export default function DashboardPage() {
                       : data.lastRun.analysis_json?.key_insight?.summary}
                   </p>
                 )}
+                <button
+                  onClick={() =>
+                    router.push(`/analysis/${data.lastRun!.strava_activity_id}`)
+                  }
+                  className="mt-4 text-sm font-medium text-[#E8521A] hover:underline"
+                >
+                  See Full Analysis →
+                </button>
               </div>
             )}
 
@@ -395,23 +447,7 @@ export default function DashboardPage() {
 
         {state === "pre-run" && (
           <div className="space-y-6">
-            {!plan ? (
-              <div className="space-y-4">
-                <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-6">
-                  <h2 className="text-2xl font-bold text-white">Generate Your Week 1 Plan</h2>
-                  <p className="mt-2 text-zinc-300">
-                    Let me create a personalized training plan based on your goal and availability.
-                  </p>
-                </div>
-                <button
-                  onClick={handleGeneratePlan}
-                  disabled={generatingPlan}
-                  className="w-full rounded-lg bg-[#E8521A] px-6 py-4 text-lg font-medium text-white transition-colors hover:bg-[#d14715] disabled:opacity-50"
-                >
-                  {generatingPlan ? "Generating..." : "Generate Plan"}
-                </button>
-              </div>
-            ) : todaysPlan && brief ? (
+            {plan && todaysPlan && brief ? (
               <>
                 <div className="rounded-lg border-2 border-[#E8521A] bg-gradient-to-br from-[#E8521A]/10 to-zinc-900 p-8">
                   <div className="mb-4 flex items-center gap-3">
@@ -500,7 +536,7 @@ export default function DashboardPage() {
                   I've completed my run
                 </button>
               </>
-            ) : (
+            ) : plan ? (
               <>
                 {(() => {
                   const today = getDayOfWeek().toLowerCase();
@@ -569,7 +605,7 @@ export default function DashboardPage() {
                   I've completed my run
                 </button>
               </>
-            )}
+            ) : null}
           </div>
         )}
 
@@ -639,6 +675,37 @@ export default function DashboardPage() {
             </div>
           </div>
         )}
+
+        <div className="mt-10 border-t border-zinc-800 pt-8">
+          <div className="mb-4 rounded-lg border border-zinc-800 bg-zinc-900 p-4">
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-sm text-zinc-400">Weekly Progress</p>
+              <p className="text-sm text-zinc-400">
+                {data.weeklyRuns} / {data.user.available_days?.length || 0} runs
+              </p>
+            </div>
+            <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-800">
+              <div
+                className="h-full bg-[#E8521A] transition-all"
+                style={{
+                  width: `${((data.weeklyRuns / (data.user.available_days?.length || 1)) * 100).toFixed(0)}%`,
+                }}
+              />
+            </div>
+          </div>
+          {daysToGoal !== null && daysToGoal >= 0 && (
+            <div className="mb-4 rounded-lg border border-zinc-800 bg-zinc-900 p-4">
+              <p className="text-sm text-zinc-400">Days to goal</p>
+              <p className="mt-1 text-2xl font-bold text-[#E8521A]">{daysToGoal}</p>
+            </div>
+          )}
+          <button
+            onClick={() => router.push("/plan")}
+            className="text-sm text-zinc-400 hover:text-zinc-300"
+          >
+            View Full Weekly Plan →
+          </button>
+        </div>
       </div>
 
       {toastMessage && (

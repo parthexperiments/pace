@@ -40,10 +40,10 @@ export async function POST() {
 
     const activities = await fetchStravaActivities({
       accessToken: accessToken,
-      perPage: 30,
+      perPage: 15,
     });
 
-    const runs = activities.filter((a: any) => a.type === "Run");
+    const runs = activities.filter((a: { type?: string }) => a.type === "Run");
 
     let processed = 0;
     let skipped = 0;
@@ -69,13 +69,21 @@ export async function POST() {
           keys: "time,distance,velocity_smooth,altitude",
         });
 
-        // Calculate goal distance
-        const goalDistanceKm = 
-          user.goal_distance === 'custom' ? user.custom_distance_km :
-          user.goal_distance === '5k' ? 5 :
-          user.goal_distance === '10k' ? 10 :
-          user.goal_distance === 'half' ? 21.1 :
-          user.goal_distance === 'full' ? 42.2 : 10;
+        // Use goal for classification; default 10k finish when not yet set (e.g. during onboarding sync)
+        const goalDistanceKm =
+          user.goal_distance === "custom" && user.custom_distance_km != null
+            ? user.custom_distance_km
+            : user.goal_distance === "5k"
+            ? 5
+            : user.goal_distance === "10k"
+            ? 10
+            : user.goal_distance === "half"
+            ? 21.1
+            : user.goal_distance === "full"
+            ? 42.2
+            : 10;
+        const goalPaceS = user.goal_pace_seconds ?? null;
+        const goalType = (user.goal_type as "finish" | "time" | "pace") || "finish";
 
         const preprocessed = preprocessRun(
           streams,
@@ -90,8 +98,8 @@ export async function POST() {
             total_elevation_gain: activity.total_elevation_gain,
           },
           goalDistanceKm,
-          user.goal_pace_seconds,
-          user.goal_type as 'finish' | 'time' | 'pace'
+          goalPaceS,
+          goalType
         );
 
         const { data: previousRunData } = await supabaseAdmin
@@ -150,6 +158,7 @@ export async function POST() {
           km_splits_json: preprocessed.km_splits,
           elevation_json: preprocessed.elevation,
           analysis_json: claudeAnalysis,
+          run_summary_json: null,
           created_at: new Date().toISOString(),
         });
 
@@ -163,6 +172,11 @@ export async function POST() {
         );
       }
     }
+
+    await supabaseAdmin
+      .from("users")
+      .update({ needs_historical_sync: false })
+      .eq("id", user.id);
 
     return NextResponse.json({
       processed,

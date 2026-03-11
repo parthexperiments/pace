@@ -45,7 +45,7 @@ export async function GET() {
     const { data: lastRun } = await supabaseAdmin
       .from("run_analyses")
       .select(
-        "id, strava_activity_id, run_date, distance_m, moving_pace_s, overall_pace_s, pace_gap_s, running_pct, analysis_json"
+        "id, strava_activity_id, run_date, distance_m, moving_pace_s, overall_pace_s, pace_gap_s, running_pct, walking_pct, stopped_pct, analysis_json"
       )
       .eq("user_id", user.id)
       .order("run_date", { ascending: false })
@@ -67,12 +67,18 @@ export async function GET() {
       .eq("week_start_date", mondayOfWeek)
       .maybeSingle();
 
+    const { count: totalRuns } = await supabaseAdmin
+      .from("run_analyses")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id);
+
     return NextResponse.json({
       user,
       todayRun: todayRun || null,
       lastRun: lastRun || null,
       weeklyRuns: weeklyRuns?.length || 0,
       weeklyPlanExists: !!weeklyPlan,
+      totalRuns: totalRuns ?? 0,
     });
   } catch (error) {
     console.error("Error in /api/dashboard:", error);

@@ -6,15 +6,23 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);
+
     if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({
+        authenticated: false,
+        onboardingComplete: false,
+        needsHistoricalSync: false,
+        goalDistance: null,
+        goalDate: null,
+        name: null,
+      });
     }
 
     const { data: user, error } = await supabaseAdmin
       .from("users")
-      .select("id, goal_distance, goal_type, deadline_type, needs_historical_sync")
+      .select("goal_distance, goal_date, needs_historical_sync, name")
       .eq("id", session.user.id)
-      .single();
+      .maybeSingle();
 
     if (error) {
       console.error("Failed to fetch user status:", error);
@@ -24,7 +32,27 @@ export async function GET() {
       );
     }
 
-    return NextResponse.json({ user });
+    if (!user) {
+      return NextResponse.json({
+        authenticated: true,
+        onboardingComplete: false,
+        needsHistoricalSync: true,
+        goalDistance: null,
+        goalDate: null,
+        name: session.user.name ?? null,
+      });
+    }
+
+    const onboardingComplete = user.goal_distance != null && user.goal_distance !== "";
+
+    return NextResponse.json({
+      authenticated: true,
+      onboardingComplete,
+      needsHistoricalSync: user.needs_historical_sync === true,
+      goalDistance: user.goal_distance ?? null,
+      goalDate: user.goal_date ?? null,
+      name: user.name ?? null,
+    });
   } catch (error) {
     console.error("Error in /api/user/status:", error);
     return NextResponse.json(
