@@ -1,6 +1,6 @@
 # Pace — AI Running Coach
 
-I built Pace because I was training for my first half marathon
+I built Pace because I was training for my first half marathon (completed it last month :D)
 and every running app was giving me the same useless number:
 average pace. That number includes every traffic light, every
 phone check, every time I stopped to cross a road. It tells
